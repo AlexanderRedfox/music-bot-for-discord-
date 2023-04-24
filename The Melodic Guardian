@@ -1,0 +1,81 @@
+const Discord = require('discord.js');
+const ytdl = require('ytdl-core');
+const youtubeSearch = require('youtube-search-api');
+
+const client = new Discord.Client();
+const prefix = '!'; // Prefijo para los comandos del bot
+
+client.once('ready', () => {
+  console.log('El bot de música está listo.');
+});
+
+client.on('message', async message => {
+  if (!message.content.startsWith(prefix) || message.author.bot) {
+    return;
+  }
+
+  const args = message.content.slice(prefix.length).trim().split(/ +/);
+  const command = args.shift().toLowerCase();
+
+  if (command === 'play') {
+    const voiceChannel = message.member.voice.channel;
+
+    if (!voiceChannel) {
+      return message.channel.send(
+        'Debes estar en un canal de voz para reproducir música.'
+      );
+    }
+
+    const permissions = voiceChannel.permissionsFor(message.client.user);
+
+    if (!permissions.has('CONNECT') || !permissions.has('SPEAK')) {
+      return message.channel.send(
+        'Necesito permisos para unirme y hablar en el canal de voz.'
+      );
+    }
+
+    let songUrl = args[0];
+
+    // Si no se proporcionó un enlace, se asume que se proporcionó el nombre del video
+    if (!ytdl.validateURL(songUrl)) {
+      try {
+        const results = await youtubeSearch.GetListByKeyword(songUrl, false);
+        songUrl = `https://www.youtube.com/watch?v=${results.items[0].id.videoId}`;
+      } catch (error) {
+        console.error(`Error al buscar el video: ${error}`);
+        return message.channel.send(
+          'No se pudo encontrar el video correspondiente. Asegúrate de proporcionar un nombre de video válido.'
+        );
+      }
+    }
+
+    try {
+      var connection = await voiceChannel.join();
+    } catch (error) {
+      console.error(`No pude unirme al canal de voz: ${error}`);
+      return message.channel.send(
+        'No pude unirme al canal de voz, verifica que tengo los permisos necesarios.'
+      );
+    }
+
+    const dispatcher = connection
+      .play(ytdl(songUrl))
+      .on('finish', () => {
+        voiceChannel.leave();
+      })
+      .on('error', error => {
+        console.error(error);
+      });
+    dispatcher.setVolumeLogarithmic(5 / 5);
+  }
+
+  if (command === 'stop') {
+    const voiceChannel = message.member.voice.channel;
+
+    if (!voiceChannel) {
+      return message.channel.send(
+        'Debes estar en un canal de voz para detener la música.'
+      );
+    }
+
+    voice
